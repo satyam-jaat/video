@@ -107,8 +107,6 @@
 
         .video-container {
             display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
             justify-content: center;
         }
 
@@ -118,16 +116,17 @@
             overflow: hidden;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
             background: #000;
-            flex: 1;
-            min-width: 300px;
-            max-width: 100%;
+            width: 100%;
+            max-width: 640px;
+            aspect-ratio: 16/9;
         }
 
         video {
             width: 100%;
+            height: 100%;
             display: block;
-            height: auto;
             background: #000;
+            object-fit: cover;
         }
 
         .video-label {
@@ -162,6 +161,41 @@
         .status.error {
             background: #ffe3e3;
             color: #c92a2a;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #f8f9fa;
+            border: none;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 60px;
+            height: 60px;
+        }
+
+        .control-btn:hover {
+            background: #e9ecef;
+            transform: scale(1.05);
+        }
+
+        .control-btn i {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .control-btn span {
+            font-size: 12px;
         }
 
         .stats {
@@ -237,8 +271,13 @@
             .video-wrapper {
                 min-width: 100%;
             }
+            
+            .controls {
+                flex-wrap: wrap;
+            }
         }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
@@ -264,13 +303,24 @@
             <div id="callArea" class="call-area">
                 <div class="video-container">
                     <div class="video-wrapper">
-                        <video id="localVideo" autoplay muted playsinline></video>
-                        <div class="video-label">You</div>
-                    </div>
-                    <div class="video-wrapper">
                         <video id="remoteVideo" autoplay playsinline></video>
-                        <div class="video-label">Remote</div>
+                        <div class="video-label">Remote Participant</div>
                     </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="control-btn" id="switchCameraBtn">
+                        <i class="fas fa-camera-rotate"></i>
+                        <span>Switch</span>
+                    </button>
+                    <button class="control-btn" id="muteBtn">
+                        <i class="fas fa-microphone"></i>
+                        <span>Mute</span>
+                    </button>
+                    <button class="control-btn" id="endCallBtn">
+                        <i class="fas fa-phone-slash"></i>
+                        <span>End</span>
+                    </button>
                 </div>
                 
                 <div class="stats" id="statsPanel">
@@ -293,7 +343,7 @@
                         <li>Share the room ID with someone to start a video call</li>
                         <li>Allow camera and microphone permissions when prompted</li>
                         <li>Only 2 users can be in a room at the same time</li>
-                        <li>The application sends video frames to the backend every second for processing</li>
+                        <li>Use the camera switch button to toggle between front and back cameras</li>
                     </ul>
                 </div>
             </div>
@@ -310,18 +360,23 @@
         const ROOM_ID = '12345678';
         const joinBtn = document.getElementById('joinBtn');
         const roomInput = document.getElementById('roomId');
-        const localVideo = document.getElementById('localVideo');
         const remoteVideo = document.getElementById('remoteVideo');
         const callArea = document.getElementById('callArea');
         const statusMessage = document.getElementById('statusMessage');
         const statsPanel = document.getElementById('statsPanel');
         const framesSent = document.getElementById('framesSent');
         const connectionStatus = document.getElementById('connectionStatus');
+        const switchCameraBtn = document.getElementById('switchCameraBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const endCallBtn = document.getElementById('endCallBtn');
 
         let pc;
         let localStream;
         let frameInterval;
         let framesCount = 0;
+        let isMuted = false;
+        let usingFrontCamera = true;
+        let videoSender = null;
 
         // Set up event listeners
         roomInput.addEventListener('keypress', (e) => {
@@ -357,12 +412,7 @@
                 statsPanel.style.display = 'block';
 
                 try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { width: 1280, height: 720 }, 
-                        audio: true 
-                    });
-                    localVideo.srcObject = localStream;
-
+                    await setupLocalStream();
                     setupPeerConnection();
                     
                     const offer = await pc.createOffer();
@@ -403,19 +453,111 @@
                 }
                 remoteVideo.srcObject = null;
                 connectionStatus.textContent = 'Disconnected';
+                connectionStatus.style.color = '#c92a2a';
             });
         };
 
+        // Switch camera functionality
+        switchCameraBtn.onclick = async () => {
+            try {
+                // Stop the current video tracks
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+                
+                // Switch camera facing mode
+                usingFrontCamera = !usingFrontCamera;
+                
+                // Get new stream with the opposite facing mode
+                await setupLocalStream();
+                
+                // Replace the video track in the peer connection
+                if (pc && videoSender) {
+                    const videoTrack = localStream.getVideoTracks()[0];
+                    await videoSender.replaceTrack(videoTrack);
+                }
+                
+                showStatus(`Switched to ${usingFrontCamera ? 'front' : 'back'} camera`, 'connected');
+            } catch (error) {
+                console.error('Error switching camera:', error);
+                showStatus('Error switching camera', 'error');
+            }
+        };
+
+        // Mute/unmute functionality
+        muteBtn.onclick = () => {
+            if (!localStream) return;
+            
+            const audioTracks = localStream.getAudioTracks();
+            if (audioTracks.length > 0) {
+                isMuted = !isMuted;
+                audioTracks[0].enabled = !isMuted;
+                
+                muteBtn.innerHTML = isMuted ? 
+                    '<i class="fas fa-microphone-slash"></i><span>Unmute</span>' : 
+                    '<i class="fas fa-microphone"></i><span>Mute</span>';
+                
+                showStatus(isMuted ? 'Microphone muted' : 'Microphone unmuted', 'connected');
+            }
+        };
+
+        // End call functionality
+        endCallBtn.onclick = () => {
+            // Clean up and reset UI
+            if (frameInterval) clearInterval(frameInterval);
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (pc) pc.close();
+            
+            callArea.style.display = 'none';
+            statsPanel.style.display = 'none';
+            joinBtn.disabled = false;
+            
+            remoteVideo.srcObject = null;
+            showStatus('Call ended', 'error');
+            
+            // Reset mute button
+            isMuted = false;
+            muteBtn.innerHTML = '<i class="fas fa-microphone"></i><span>Mute</span>';
+        };
+
+        async function setupLocalStream() {
+            const constraints = {
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    frameRate: { ideal: 30 },
+                    facingMode: usingFrontCamera ? 'user' : 'environment'
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true
+                }
+            };
+            
+            localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            return localStream;
+        }
+
         function setupPeerConnection() {
-            pc = new RTCPeerConnection({
+            const configuration = {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' }
-                ]
-            });
+                ],
+                sdpSemantics: 'unified-plan'
+            };
+
+            pc = new RTCPeerConnection(configuration);
 
             // Add local stream tracks to peer connection
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            localStream.getTracks().forEach(track => {
+                const sender = pc.addTrack(track, localStream);
+                if (track.kind === 'video') {
+                    videoSender = sender;
+                }
+            });
 
             // Set up event handlers for peer connection
             pc.onicecandidate = (event) => {
@@ -473,6 +615,13 @@
             statusMessage.textContent = message;
             statusMessage.className = 'status ' + type;
             statusMessage.style.display = 'block';
+            
+            // Auto-hide success messages after 3 seconds
+            if (type === 'connected') {
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, 3000);
+            }
         }
 
         // Clean up on page unload
