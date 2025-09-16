@@ -3,17 +3,305 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Simple WebRTC Video Call</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced WebRTC Video Call</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 900px;
+            overflow: hidden;
+        }
+
+        header {
+            background: #4a6fa5;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .join-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        input {
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            width: 250px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            border-color: #4a6fa5;
+            outline: none;
+        }
+
+        button {
+            background: #4a6fa5;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #3a5a80;
+        }
+
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .call-area {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .video-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .video-wrapper {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            background: #000;
+            flex: 1;
+            min-width: 300px;
+            max-width: 100%;
+        }
+
+        video {
+            width: 100%;
+            display: block;
+            height: auto;
+            background: #000;
+        }
+
+        .video-label {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .status.connecting {
+            background: #fff4e5;
+            color: #e67700;
+        }
+
+        .status.connected {
+            background: #d3f9d8;
+            color: #2b8a3e;
+        }
+
+        .status.error {
+            background: #ffe3e3;
+            color: #c92a2a;
+        }
+
+        .stats {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .stats h3 {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .stats-content {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4a6fa5;
+        }
+
+        .instructions {
+            background: #f1f3f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #4a6fa5;
+        }
+
+        .instructions ul {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 15px;
+            font-size: 14px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+        }
+
+        @media (max-width: 768px) {
+            .input-group {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            input {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .video-wrapper {
+                min-width: 100%;
+            }
+        }
+    </style>
 </head>
 
 <body>
-    <h2>Simple Video Call (Only 2 users in Room)</h2>
-    <input type="text" id="roomId" placeholder="Enter Room ID (12345678)" />
-    <button id="joinBtn">Join Room</button>
+    <div class="container">
+        <header>
+            <h1>Enhanced WebRTC Video Call</h1>
+            <div class="subtitle">Secure peer-to-peer video communication</div>
+        </header>
 
-    <div id="callArea" style="display:none;">
-        <video id="localVideo" autoplay muted playsinline></video>
-        <video id="remoteVideo" autoplay playsinline></video>
+        <div class="content">
+            <div class="join-section">
+                <h2>Join a Video Call Room</h2>
+                <p>Enter the room ID to start or join a video call</p>
+                
+                <div class="input-group">
+                    <input type="text" id="roomId" placeholder="Enter Room ID (12345678)" />
+                    <button id="joinBtn">Join Room</button>
+                </div>
+                
+                <div id="statusMessage" class="status"></div>
+            </div>
+
+            <div id="callArea" class="call-area">
+                <div class="video-container">
+                    <div class="video-wrapper">
+                        <video id="localVideo" autoplay muted playsinline></video>
+                        <div class="video-label">You</div>
+                    </div>
+                    <div class="video-wrapper">
+                        <video id="remoteVideo" autoplay playsinline></video>
+                        <div class="video-label">Remote</div>
+                    </div>
+                </div>
+                
+                <div class="stats" id="statsPanel">
+                    <h3>Connection Stats</h3>
+                    <div class="stats-content">
+                        <div class="stat-item">
+                            <div class="stat-label">Frames Sent</div>
+                            <div class="stat-value" id="framesSent">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Connection</div>
+                            <div class="stat-value" id="connectionStatus">Pending</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="instructions">
+                    <h3>How to use:</h3>
+                    <ul>
+                        <li>Share the room ID with someone to start a video call</li>
+                        <li>Allow camera and microphone permissions when prompted</li>
+                        <li>Only 2 users can be in a room at the same time</li>
+                        <li>The application sends video frames to the backend every second for processing</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by WebRTC Technology | Secure & Private</p>
+        </footer>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -25,47 +313,74 @@
         const localVideo = document.getElementById('localVideo');
         const remoteVideo = document.getElementById('remoteVideo');
         const callArea = document.getElementById('callArea');
+        const statusMessage = document.getElementById('statusMessage');
+        const statsPanel = document.getElementById('statsPanel');
+        const framesSent = document.getElementById('framesSent');
+        const connectionStatus = document.getElementById('connectionStatus');
 
         let pc;
         let localStream;
+        let frameInterval;
+        let framesCount = 0;
+
+        // Set up event listeners
+        roomInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinBtn.click();
+            }
+        });
 
         joinBtn.onclick = async () => {
             if (roomInput.value !== ROOM_ID) {
-                alert('Please enter correct room ID.');
+                showStatus('Please enter the correct room ID.', 'error');
                 return;
             }
 
-            socket.emit('join-room', ROOM_ID);
+            showStatus('Connecting to room...', 'connecting');
+            joinBtn.disabled = true;
+            
+            try {
+                socket.emit('join-room', ROOM_ID);
+            } catch (error) {
+                showStatus('Connection error: ' + error.message, 'error');
+                joinBtn.disabled = false;
+            }
 
             socket.on('room-error', (msg) => {
-                alert(msg);
+                showStatus(msg, 'error');
+                joinBtn.disabled = false;
             });
 
             socket.on('room-joined', async () => {
-                callArea.style.display = 'block';
+                showStatus('Room joined successfully! Starting video...', 'connected');
+                callArea.style.display = 'flex';
+                statsPanel.style.display = 'block';
 
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                localVideo.srcObject = localStream;
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { width: 1280, height: 720 }, 
+                        audio: true 
+                    });
+                    localVideo.srcObject = localStream;
 
-                pc = new RTCPeerConnection();
+                    setupPeerConnection();
+                    
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    socket.emit('signal', { sdp: offer });
 
-                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                    // Start sending frames periodically
+                    frameInterval = setInterval(sendFrameToBackend, 1000);
+                } catch (error) {
+                    showStatus('Error accessing media devices: ' + error.message, 'error');
+                    joinBtn.disabled = false;
+                }
+            });
 
-                pc.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        socket.emit('signal', { candidate: event.candidate });
-                    }
-                };
-
-                pc.ontrack = (event) => {
-                    remoteVideo.srcObject = event.streams[0];
-                };
-
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                socket.emit('signal', { sdp: offer });
-
-                socket.on('signal', async (data) => {
+            socket.on('signal', async (data) => {
+                if (!pc) return;
+                
+                try {
                     if (data.sdp) {
                         await pc.setRemoteDescription(data.sdp);
                         if (data.sdp.type === 'offer') {
@@ -74,31 +389,101 @@
                             socket.emit('signal', { sdp: answer });
                         }
                     } else if (data.candidate) {
-                        try {
-                            await pc.addIceCandidate(data.candidate);
-                        } catch (e) {
-                            console.error(e);
-                        }
+                        await pc.addIceCandidate(data.candidate);
                     }
-                });
+                } catch (error) {
+                    console.error('Error processing signal:', error);
+                }
+            });
 
-                // Periodically send frame to backend
-                setInterval(() => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 320;
-                    canvas.height = 240;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
-                    const imageData = canvas.toDataURL('image/jpeg');
-
-                    fetch('/process-frame', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ image: imageData })
-                    });
-                }, 1000);  // Every 1 second
+            socket.on('user-disconnected', () => {
+                showStatus('The other user has disconnected.', 'error');
+                if (remoteVideo.srcObject) {
+                    remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+                }
+                remoteVideo.srcObject = null;
+                connectionStatus.textContent = 'Disconnected';
             });
         };
+
+        function setupPeerConnection() {
+            pc = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            });
+
+            // Add local stream tracks to peer connection
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+            // Set up event handlers for peer connection
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('signal', { candidate: event.candidate });
+                }
+            };
+
+            pc.ontrack = (event) => {
+                remoteVideo.srcObject = event.streams[0];
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.style.color = '#2b8a3e';
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                if (pc.iceConnectionState === 'disconnected') {
+                    connectionStatus.textContent = 'Disconnected';
+                    connectionStatus.style.color = '#c92a2a';
+                } else if (pc.iceConnectionState === 'connected') {
+                    connectionStatus.textContent = 'Connected';
+                    connectionStatus.style.color = '#2b8a3e';
+                }
+            };
+        }
+
+        function sendFrameToBackend() {
+            if (!remoteVideo.srcObject || remoteVideo.readyState < 2) return;
+            
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 320;
+                canvas.height = 240;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/jpeg');
+
+                fetch('/process-frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                }).then(response => {
+                    if (response.ok) {
+                        framesCount++;
+                        framesSent.textContent = framesCount;
+                    }
+                }).catch(error => {
+                    console.error('Error sending frame:', error);
+                });
+            } catch (error) {
+                console.error('Error capturing frame:', error);
+            }
+        }
+
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status ' + type;
+            statusMessage.style.display = 'block';
+        }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (frameInterval) clearInterval(frameInterval);
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (pc) pc.close();
+            socket.disconnect();
+        });
     </script>
 </body>
 
