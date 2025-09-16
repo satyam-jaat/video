@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Simple WebRTC Video Call</title>
+</head>
+
+<body>
+    <h2>Simple Video Call (Only 2 users in Room)</h2>
+    <input type="text" id="roomId" placeholder="Enter Room ID (12345678)" />
+    <button id="joinBtn">Join Room</button>
+
+    <div id="callArea" style="display:none;">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const ROOM_ID = '12345678';
+        const joinBtn = document.getElementById('joinBtn');
+        const roomInput = document.getElementById('roomId');
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const callArea = document.getElementById('callArea');
+
+        let pc;
+        let localStream;
+
+        joinBtn.onclick = async () => {
+            if (roomInput.value !== ROOM_ID) {
+                alert('Please enter correct room ID.');
+                return;
+            }
+
+            socket.emit('join-room', ROOM_ID);
+
+            socket.on('room-error', (msg) => {
+                alert(msg);
+            });
+
+            socket.on('room-joined', async () => {
+                callArea.style.display = 'block';
+
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream;
+
+                pc = new RTCPeerConnection();
+
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('signal', { candidate: event.candidate });
+                    }
+                };
+
+                pc.ontrack = (event) => {
+                    remoteVideo.srcObject = event.streams[0];
+                };
+
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socket.emit('signal', { sdp: offer });
+
+                socket.on('signal', async (data) => {
+                    if (data.sdp) {
+                        await pc.setRemoteDescription(data.sdp);
+                        if (data.sdp.type === 'offer') {
+                            const answer = await pc.createAnswer();
+                            await pc.setLocalDescription(answer);
+                            socket.emit('signal', { sdp: answer });
+                        }
+                    } else if (data.candidate) {
+                        try {
+                            await pc.addIceCandidate(data.candidate);
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                });
+
+                // Periodically send frame to backend
+                setInterval(() => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 320;
+                    canvas.height = 240;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
+                    const imageData = canvas.toDataURL('image/jpeg');
+
+                    fetch('/process-frame', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image: imageData })
+                    });
+                }, 1000);  // Every 1 second
+            });
+        };
+    </script>
+</body>
+
+</html>
